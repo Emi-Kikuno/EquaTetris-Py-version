@@ -570,22 +570,7 @@ function mergePiece(){
     }
   }
 }
-function applyGravity() {
-  for (let c = 0; c < COLS; c++) {
-    for (let r = ROWS - 1; r >= 0; r--) {
-      if (!field[r][c]) {
-        // Look for first block above this empty space
-        for (let rr = r - 1; rr >= 0; rr--) {
-          if (field[rr][c]) {
-            field[r][c] = field[rr][c];
-            field[rr][c] = null;
-            break;
-          }
-        }
-      }
-    }
-  }
-}
+
 
 function clearLines(){
   let linesCleared = 0;
