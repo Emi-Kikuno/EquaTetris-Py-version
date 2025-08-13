@@ -1,0 +1,1004 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EquaTetris V15</title>
+<script defer src="https://cdn.jsdelivr.net/pyodide/v0.26.2/full/pyodide.js"></script>
+</head>
+<body>
+
+<div id="hud">
+  <div id="score">Score: 0</div>
+  <div id="level">Level: 1</div>
+  <div id="speed">Speed: 0.63s</div>
+  <div id="next-piece">
+    Next:
+    <canvas id="nextCanvas" width="80" height="80"></canvas>
+  </div>
+</div>
+
+<div id="game-container">
+  <canvas id="gameCanvas"></canvas>
+</div>
+
+<div id="bottom-bar">
+  <button id="pause-btn" class="control-btn">⏸</button>
+  <div id="move-controls">
+    <button id="left-btn" class="control-btn">◀</button>
+    <button id="rotate-btn" class="control-btn">⟳</button>
+    <button id="right-btn" class="control-btn">▶</button>
+    <button id="drop-btn" class="control-btn">⬇</button>
+  </div>
+  <button id="exit-btn" class="control-btn">❌</button>
+</div>
+
+<!-- Solver Toast -->
+<div id="solver-toast" class="toast hidden">
+  <div id="equation-text">Equation: </div>
+  <input type="text" id="equation-input" readonly>
+  <div id="numpad">
+    <button class="num-btn">1</button>
+    <button class="num-btn">2</button>
+    <button class="num-btn">3</button>
+    <button class="num-btn">4</button>
+    <button class="num-btn">5</button>
+    <button class="num-btn">6</button>
+    <button class="num-btn">7</button>
+    <button class="num-btn">8</button>
+    <button class="num-btn">9</button>
+    <button id="clear-btn">⌫</button>
+    <button class="num-btn">0</button>
+    <button id="submit-btn">✔</button>
+  </div>
+</div>
+
+<!-- Exit Confirmation Toast -->
+<div id="exit-toast" class="toast hidden">
+  <div>Leave the game?</div>
+  <div id="exit-options">
+    <button id="resume-btn">Resume</button>
+    <button id="leave-btn">Leave</button>
+  </div>
+</div>
+
+<!-- Leaderboard / Game Over Toast -->
+<div id="lb-toast" class="toast hidden">
+  <div id="lb-title">Game Over</div>
+  <div id="lb-entry">
+    <label>Enter name:</label>
+    <input id="lb-name" maxlength="12" placeholder="Player">
+    <button id="lb-save">Save Score</button>
+  </div>
+  <div id="lb-list"></div>
+  <div style="margin-top:8px;display:flex;gap:8px;justify-content:center;">
+    <button id="lb-restart">Play Again</button>
+    <button id="lb-clear">Clear Leaderboard</button>
+    <button id="lb-close">Close</button>
+  </div>
+</div>
+
+<style>
+body {
+  margin: 0;
+  background: #000;
+  color: white;
+  font-family: Arial, sans-serif;
+  text-align: center;
+}
+
+#hud {
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  padding: 5px;
+  background: #111;
+  font-size: 14px;
+}
+
+#game-container{
+display:flex;
+justify-content:center;
+align-items:center;
+background:#000;}
+
+#gameCanvas{
+  background:#0b1220;          /* playfield background */
+  display:block;               /* removes extra inline spacing */
+}
+
+#bottom-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 5px;
+  background: #111;
+}
+
+.control-btn {
+  background: rgba(255,255,255,0.2);
+  color: white;
+  border: none;
+  font-size: 20px;
+  padding: 8px;
+  border-radius: 6px;
+}
+
+.control-btn:active {
+  background: rgba(255,255,255,0.4);
+}
+
+#move-controls {
+  display: flex;
+  justify-content: center;
+  gap: 15px; /* more spacing between buttons */
+}
+
+#move-controls button {
+  min-width: 48px; /* bigger tap area */
+}
+
+.toast {
+  position: fixed;
+  bottom: 15%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #333;
+  padding: 10px;
+  border-radius: 8px;
+  z-index: 10;
+}
+
+.toast.hidden {
+  display: none;
+}
+
+#solver-toast {
+  transform: scale(1.25);
+  transform-origin: center bottom;
+}
+#lb-list { text-align:left; margin-top:8px; font-size:14px; }
+#lb-list ol { padding-left:18px; margin:6px 0; }
+#lb-entry { display:flex; gap:6px; justify-content:center; margin-top:6px; }
+#lb-entry input { width:120px; padding:6px; border-radius:6px; border:none; }
+
+#numpad {
+  display: grid;
+  grid-template-columns: repeat(3, 50px);
+  gap: 5px;
+  margin-top: 5px;
+}
+
+.num-btn, #clear-btn, #submit-btn {
+  background: #555;
+  color: white;
+  font-size: 18px;
+  border: none;
+  border-radius: 6px;
+  padding: 10px;
+}
+
+#exit-options {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+
+#exit-options button {
+  flex: 1;
+  padding: 8px;
+  background: #555;
+  border: none;
+  border-radius: 6px;
+  color: white;
+}
+
+#drop-btn {
+  background-color: #d62828; /* strong red */
+  color: white;              /* make arrow stand out */
+  margin-left: 25px; /* pushes it further away from the right arrow */
+}
+#drop-btn:active {
+  background-color: #a61e1e; /* darker red when pressed */
+}
+
+#left-btn {
+  background-color: #0077b6 !important;
+  color: white !important;
+}
+#left-btn:active {
+  background-color: #005f86 !important;
+}
+
+#right-btn {
+  background-color: #0077b6 !important;
+  color: white !important;
+}
+#right-btn:active {
+  background-color: #005f86 !important;
+}
+
+#rotate-btn {
+  background-color: #ffbe0b !important;
+  color: black !important;
+}
+#rotate-btn:active {
+  background-color: #e0a900 !important;
+}
+
+
+</style>
+
+
+
+<script>
+// --- GAME CONSTANTS ---
+const COLS = 10;
+const ROWS = 20;
+const BLOCK_SIZE = 30;
+
+const COLORS = ["cyan", "yellow", "purple", "green", "red", "blue", "orange"];
+const OPERATORS = ["+", "-", "×", "÷"];
+let totalLines = 0;
+const LEVEL_SPEEDS = [630, 600, 550, 500, 470, 440, 410, 390, 370, 350, 330, 310, 290, 280, 270, 260, 250, 240, 230, 220, 210, 200]; // ms/drop
+const LINES_PER_LEVEL = 10;
+
+const SHAPES = {
+  I: [[1, 1, 1, 1]],
+  O: [[1, 1], [1, 1]],
+  T: [[0, 1, 0], [1, 1, 1]],
+  S: [[0, 1, 1], [1, 1, 0]],
+  Z: [[1, 1, 0], [0, 1, 1]],
+  J: [[1, 0, 0], [1, 1, 1]],
+  L: [[0, 0, 1], [1, 1, 1]]
+};
+const SHAPE_KEYS = Object.keys(SHAPES);
+
+let dropInterval = 630; // starting speed in ms (~NES level 2)
+let dropTimer = 0;
+let level = 1;
+let score = 0;
+let running = true;
+let paused = false;
+
+let field = [];
+let active = null;
+let nextPiece = null;
+
+// Selected block info
+let selectedCell = null;
+
+// Toasts
+const solverToast = document.getElementById("solver-toast");
+const equationText = document.getElementById("equation-text");
+const equationInput = document.getElementById("equation-input");
+const numpadBtns = document.querySelectorAll(".num-btn");
+const clearBtn = document.getElementById("clear-btn");
+const submitBtn = document.getElementById("submit-btn");
+
+const exitToast = document.getElementById("exit-toast");
+
+function resetSolverUI(){
+  selectedCell = null;
+  equationInput.value = '';
+  solverToast.classList.add('hidden');
+}
+
+function applyLevel(){
+  const sp = LEVEL_SPEEDS[Math.min(level-1, LEVEL_SPEEDS.length-1)];
+  dropInterval = sp;
+  document.getElementById('level').textContent = `Level: ${level}`;
+  document.getElementById('speed').textContent = `Speed: ${(sp/1000).toFixed(2)}s`;
+}
+const LB_KEY = 'equatris.leaderboard';
+
+function lbLoad(){
+  try { return JSON.parse(localStorage.getItem(LB_KEY)) || []; }
+  catch { return []; }
+}
+function lbSave(list){ localStorage.setItem(LB_KEY, JSON.stringify(list)); }
+
+function lbAdd(name, score){
+  const list = lbLoad();
+  list.push({name: name?.trim() || 'Player', score, ts: Date.now()});
+  list.sort((a,b)=> b.score - a.score || a.ts - b.ts);
+  lbSave(list.slice(0,10)); // keep top 10
+}
+
+function lbRender(){
+  const list = lbLoad();
+  const wrap = document.getElementById('lb-list');
+  if (!list.length){ wrap.innerHTML = '<p>No scores yet.</p>'; return; }
+  const items = list.map((e,i)=> `<li>#${i+1} — ${e.name} : <b>${e.score}</b></li>`).join('');
+  wrap.innerHTML = `<ol>${items}</ol>`;
+}
+
+function lbShow(gameOver=true){
+  document.getElementById('lb-title').textContent = gameOver ? 'Game Over' : 'Leaderboard';
+  document.getElementById('lb-toast').classList.remove('hidden');
+}
+function lbHide(){ document.getElementById('lb-toast').classList.add('hidden'); }
+
+// Controls
+const pauseBtn = document.getElementById("pause-btn");
+const exitBtn = document.getElementById("exit-btn");
+const resumeBtn = document.getElementById("resume-btn");
+const leaveBtn = document.getElementById("leave-btn");
+
+// Canvas
+const gameCanvas = document.getElementById("gameCanvas");
+const ctx = gameCanvas.getContext("2d");
+gameCanvas.width = COLS * BLOCK_SIZE;
+gameCanvas.height = ROWS * BLOCK_SIZE;
+
+// Next piece canvas
+const nextCanvas = document.getElementById("nextCanvas");
+const nextCtx = nextCanvas.getContext("2d");
+
+// --- FIELD INIT ---
+function initField() {
+  field = Array.from({ length: ROWS }, () => Array(COLS).fill(null));
+}
+
+// --- EQUATION GENERATION ---
+function jsRandomEquation(level) {
+  let op = OPERATORS[Math.floor(Math.random() * OPERATORS.length)];
+  let a, b, result;
+  if (op === "+") {
+    a = Math.floor(Math.random() * 9) + 1;
+    b = Math.floor(Math.random() * 9) + 1;
+    result = a + b;
+  } else if (op === "-") {
+    a = Math.floor(Math.random() * 9) + 1;
+    b = Math.max(1, Math.floor(Math.random() * a));
+    result = a - b;
+  } else if (op === "×") {
+    a = Math.floor(Math.random() * 9) + 1;
+    b = Math.floor(Math.random() * 9) + 1;
+    result = a * b;
+  } else {
+    b = Math.floor(Math.random() * 8) + 2;
+    result = Math.floor(Math.random() * 9) + 1;
+    a = b * result;
+  }
+  return { op, a, b, answer: result };
+}
+// ---- Python integration (Pyodide) ----
+let pyState = { ready:false, pyodide:null, pyNewEquation:null, pyCheck:null };
+
+async function initPy(){
+  try{
+    if (!window.loadPyodide) {
+      console.log("ℹ️ Loading Pyodide from CDN…");
+      const s = document.createElement('script');
+      s.src = "https://cdn.jsdelivr.net/pyodide/v0.26.2/full/pyodide.js";
+      document.head.appendChild(s);
+      await new Promise(res=>s.onload=res);
+    }
+    pyState.pyodide = await loadPyodide({ indexURL: "https://cdn.jsdelivr.net/pyodide/v0.26.2/full/" });
+    // Python engine (embedded)
+    const ENGINE_PY = `
+import random, math
+from typing import Optional, TypedDict, Literal
+
+Op = Literal["+", "-", "×", "÷"]
+
+class Equation(TypedDict):
+    op: Op
+    a: int
+    b: int
+    answer: int
+    label: str
+
+_rng = random.Random()
+
+def seed_rng(seed: Optional[int|str] = None):
+    global _rng
+    _rng = random.Random(seed)
+
+def _non_trivial(a:int,b:int,op:str)->bool:
+    if op in {"+","-"} and (a==0 or b==0): return False
+    if op == "×" and (a in {0,1} or b in {0,1}): return False
+    if op == "÷" and (b in {0,1}): return False
+    return True
+
+def new_equation(level:int=1) -> Equation:
+    # simple level-based ranges
+    ops = ["+","-"] if level<=1 else ["+","-","×"] if level==2 else ["+","-","×","÷"]
+    lo, hi = (1,9) if level<=1 else (1,12) if level==2 else (1,15)
+    while True:
+        op = _rng.choice(ops)
+        if op == "+":
+            a = _rng.randint(lo, hi); b = _rng.randint(lo, hi); ans = a + b
+        elif op == "-":
+            a = _rng.randint(lo, hi); b = _rng.randint(lo, a); ans = a - b
+        elif op == "×":
+            a = _rng.randint(lo, hi); b = _rng.randint(lo, hi); ans = a * b
+        else:
+            b = _rng.randint(max(2,lo), max(2,hi))
+            q = _rng.randint(lo, max(lo, hi//max(2,b)))
+            a = b*q; ans = q
+        if not _non_trivial(a,b,op): 
+            continue
+        label = f"{op}{len(str(a))}d"
+        return {"op": op, "a": a, "b": b, "answer": ans, "label": label}
+
+def check_answer(op:str, a:int, b:int, user:int) -> bool:
+    if op == "+":  expect = a + b
+    elif op == "-": expect = a - b
+    elif op == "×": expect = a * b
+    else:
+        if b == 0: return False
+        expect = a // b
+    return user == expect
+`;
+    pyState.pyodide.runPython(ENGINE_PY);
+    pyState.pyNewEquation = pyState.pyodide.globals.get("new_equation");
+    pyState.pyCheck = pyState.pyodide.globals.get("check_answer");
+    pyState.ready = true;
+    console.log("✅ Python engine active (Pyodide)");
+  }catch(err){
+    console.warn("⚠️ Python engine failed, using JS fallback.", err);
+  }
+}
+// kick off load but do not block page
+initPy();
+
+// ---- Helpers ----
+function toPlain(x){
+  if (x == null) return x;
+  try { if (typeof x.toJs === "function") return x.toJs({ create_proxies:false }); } catch(e){}
+  try { if (window.pyodide && typeof window.pyodide.toJs === "function") return window.pyodide.toJs(x, { create_proxies:false }); } catch(e){}
+  return x;
+}
+
+// Global wrapper used by game logic
+function randomEquation(level){
+  if (pyState.ready && pyState.pyNewEquation){
+    const res = pyState.pyNewEquation(level);
+    return toPlain(res);
+  }
+  return jsRandomEquation(level);
+}
+
+function checkAnswerWrapper(eq, userVal){
+  if (pyState.ready && pyState.pyCheck){
+    const res = pyState.pyCheck(eq.op, eq.a, eq.b, userVal);
+    return !!toPlain(res);
+  }
+  // JS fallback: use stored answer
+  return userVal === eq.answer;
+}
+
+// Keep this utility for any label building if needed
+function getLabel(eq) {
+  return `${eq.op}${eq.a.toString().length}d`;
+}
+// --- PIECE SPAWN ---
+
+function randomShape(){
+  const key = SHAPE_KEYS[Math.floor(Math.random() * SHAPE_KEYS.length)];
+  const matrix = SHAPES[key].map(r => r.slice()); // clone shape matrix
+  const color = COLORS[Math.floor(Math.random() * COLORS.length)];
+
+  // Generate equations for each filled cell (guaranteed non-null)
+  const equations = matrix.map(row =>
+    row.map(v => v ? randomEquation(level) : null)
+  );
+
+  // Create a mask for key blocks (all 0s initially)
+  const keyMask = matrix.map(row => row.map(() => 0));
+
+  // Decide if this tetromino will have a key block (20% chance)
+  const KEY_PIECE_CHANCE = 0.2;
+  if (Math.random() < KEY_PIECE_CHANCE) {
+    const filledCells = [];
+    for (let y = 0; y < matrix.length; y++) {
+      for (let x = 0; x < matrix[0].length; x++) {
+        if (matrix[y][x]) filledCells.push([y, x]);
+      }
+    }
+    if (filledCells.length) {
+      const [ky, kx] = filledCells[Math.floor(Math.random() * filledCells.length)];
+      keyMask[ky][kx] = 1; // mark as key block
+    }
+  }
+
+  // Final safety pass — in case something was skipped, fill any 1 cell without equation
+  for (let r = 0; r < matrix.length; r++) {
+    for (let c = 0; c < matrix[0].length; c++) {
+      if (matrix[r][c] && !equations[r][c]) {
+        equations[r][c] = randomEquation(level);
+      }
+    }
+  }
+
+  return {
+    key, matrix, color,
+    row: 0,
+    col: Math.floor(COLS / 2) - Math.ceil(matrix[0].length / 2),
+    equations,
+    keyMask
+  };
+}
+
+function spawnPiece() {
+  if (!nextPiece) nextPiece = randomShape();
+  active = nextPiece;
+  nextPiece = randomShape();
+
+  if (collides(active, active.row, active.col)) {
+    running = false;
+    paused = true;
+resetSolverUI(); 
+    document.getElementById('lb-name').value = '';
+    document.getElementById('lb-entry').style.display = 'flex';
+    lbRender();
+    lbShow(true);
+    return;
+  }
+}
+
+
+// --- COLLISION ---
+function collides(piece, row, col) {
+  for (let r = 0; r < piece.matrix.length; r++) {
+    for (let c = 0; c < piece.matrix[r].length; c++) {
+      if (piece.matrix[r][c]) {
+        let nr = row + r;
+        let nc = col + c;
+        if (nr < 0 || nc < 0 || nr >= ROWS || nc >= COLS) return true;
+        if (field[nr][nc]) return true;
+      }
+    }
+  }
+  return false;
+}
+
+// --- MERGE ---
+function mergePiece(){
+  for(let r=0;r<active.matrix.length;r++){
+    for(let c=0;c<active.matrix[r].length;c++){
+      if(!active.matrix[r][c]) continue;
+      field[active.row+r][active.col+c] = {
+        color: active.color,
+        isKeyBlock: active.keyMask?.[r]?.[c]===1,
+        solved: false,
+        equation: active.equations[r][c]
+      };
+    }
+  }
+}
+function applyGravity() {
+  for (let c = 0; c < COLS; c++) {
+    for (let r = ROWS - 1; r >= 0; r--) {
+      if (!field[r][c]) {
+        // Look for first block above this empty space
+        for (let rr = r - 1; rr >= 0; rr--) {
+          if (field[rr][c]) {
+            field[r][c] = field[rr][c];
+            field[rr][c] = null;
+            break;
+          }
+        }
+      }
+    }
+  }
+}
+
+function clearLines(){
+  let linesCleared = 0;
+
+  for (let r = ROWS - 1; r >= 0; r--) {
+    const row = field[r];
+    if (!row.every(cell => cell)) continue;
+
+    const hasUnsolvedKey = row.some(cell => cell?.isKeyBlock && !cell.solved);
+    if (hasUnsolvedKey) continue;
+
+    field.splice(r, 1);
+    field.unshift(Array(COLS).fill(null));
+    linesCleared++;
+    r++; // re-check same index after shift
+  }
+
+  if (linesCleared){
+    score += linesCleared * 100;
+    document.getElementById("score").textContent = `Score: ${score}`;
+
+    totalLines += linesCleared;
+    while (totalLines >= level * LINES_PER_LEVEL) {
+      level++;
+      applyLevel();
+    }
+  }
+}
+
+
+
+function collapseColumns(){
+  // Pull cells down within each column until no holes remain
+  for (let c = 0; c < COLS; c++){
+    let write = ROWS - 1;            // next row to fill from bottom
+    for (let r = ROWS - 1; r >= 0; r--){
+      const cell = field[r][c];
+      if (cell){
+        if (write !== r){
+          field[write][c] = cell;
+          field[r][c] = null;
+        }
+        write--;
+      }
+    }
+  }
+}
+
+
+
+// --- MOVEMENT ---
+function drop() {
+  if (!paused && running) {
+    if (!collides(active, active.row + 1, active.col)) {
+      active.row++;
+    } else {
+      mergePiece();
+      clearLines();
+debugPrintField();
+      spawnPiece();
+    }
+    render();
+  }
+}
+
+function move(dir) {
+  if (!paused && running && !collides(active, active.row, active.col + dir)) {
+    active.col += dir;
+    render();
+  }
+}
+function rotate2D(mat){
+  const R = mat.length, C = mat[0].length;
+  const out = Array.from({length:C}, () => Array(R).fill(null));
+  for (let r=0; r<R; r++){
+    for (let c=0; c<C; c++){
+      out[c][R-1-r] = mat[r][c];   // (r,c) -> (c, R-1-r)
+    }
+  }
+  return out;
+}
+function rotate(){
+  if (paused || !running || !active) return;
+  const m0=active.matrix, e0=active.equations, k0=active.keyMask;
+  const m1=rotate2D(m0), e1=rotate2D(e0), k1=rotate2D(k0);
+  const col0=active.col, kicks=[0,-1,1,-2,2];
+  for (const dx of kicks){
+   if (!collides({ ...active, matrix:m1 }, active.row, col0+dx)){
+
+      active.matrix=m1; active.equations=e1; active.keyMask=k1; active.col=col0+dx;
+      // cancel any in-progress selection on rotate
+      selectedCell = null;
+      solverToast.classList.add('hidden');
+      render();
+      return;
+    }
+  }
+}
+
+
+function hardDrop() {
+  while (!collides(active, active.row + 1, active.col)) {
+    active.row++;
+  }
+  drop();
+}
+
+// --- RENDER ---
+
+// --- Ghost piece helpers ---
+function getGhostRow(piece){
+  let r = piece.row;
+  while (!collides(piece, r + 1, piece.col)) r++;
+  return r;
+}
+
+function drawGhostBlock(x, y){
+  const px = x * BLOCK_SIZE, py = y * BLOCK_SIZE;
+  ctx.save();
+  ctx.setLineDash([5,4]);
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = "rgba(255,255,255,0.8)";
+  ctx.strokeRect(px, py, BLOCK_SIZE, BLOCK_SIZE);
+  ctx.setLineDash([]);
+  ctx.restore();
+}
+
+function drawGhostCrystal(x,y,color){
+  const px = x * BLOCK_SIZE, py = y * BLOCK_SIZE;
+  ctx.save();
+  ctx.globalAlpha = 0.22;
+  drawCrystalBlock(ctx, px, py, BLOCK_SIZE, color, "", false, 0.08);
+  ctx.restore();
+}
+
+function render() {
+  // Draw playfield background
+  ctx.fillStyle = "#0b1220"; // dark blueish background
+  ctx.fillRect(0, 0, gameCanvas.width, gameCanvas.height);
+
+  // Draw subtle grid lines
+  ctx.strokeStyle = "rgba(255,255,255,0.06)";
+  ctx.lineWidth = 1;
+  for (let x = 0; x <= COLS; x++) {
+    const px = x * BLOCK_SIZE + 0.5;
+    ctx.beginPath();
+    ctx.moveTo(px, 0);
+    ctx.lineTo(px, ROWS * BLOCK_SIZE);
+    ctx.stroke();
+  }
+  for (let y = 0; y <= ROWS; y++) {
+    const py = y * BLOCK_SIZE + 0.5;
+    ctx.beginPath();
+    ctx.moveTo(0, py);
+    ctx.lineTo(COLS * BLOCK_SIZE, py);
+    ctx.stroke();
+  }
+
+  // Draw landed blocks
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      if (field[r][c]) {
+        drawBlock(c, r, field[r][c]);
+      }
+    }
+  }
+
+  // Draw active falling piece
+  
+  // --- draw ghost landing guide ---
+  if (active) {
+    const ghostRow = getGhostRow(active);
+    for (let r = 0; r < active.matrix.length; r++) {
+      for (let c = 0; c < active.matrix[r].length; c++) {
+        if (active.matrix[r][c]) {
+          drawGhostCrystal(active.col + c, ghostRow + r, active.color);
+        }
+      }
+    }
+  }
+
+if (active) {
+    for (let r = 0; r < active.matrix.length; r++) {
+      for (let c = 0; c < active.matrix[r].length; c++) {
+        if (active.matrix[r][c]) {
+          drawBlock(active.col + c, active.row + r, {
+            color: active.color,
+            isKeyBlock: active.keyMask?.[r]?.[c] === 1,
+            equation: active.equations[r][c]
+          });
+        }
+      }
+    }
+  }
+
+  // Draw next piece preview
+  renderNext();
+}
+
+
+
+// --- Crystal block renderer ---
+
+function drawCrystalBlock(ctx, px, py, size, color, text, isKey=false, alpha=0.45){
+  ctx.save();
+  ctx.translate(px, py);
+
+  // Apply alpha to the entire crystal draw
+  ctx.globalAlpha = alpha;
+
+  // Base translucent fill
+  ctx.fillStyle = color;
+  ctx.fillRect(0, 0, size, size);
+
+  // Crystal highlight gradient
+  const grad = ctx.createLinearGradient(0, 0, size, size);
+  grad.addColorStop(0, "rgba(255,255,255,0.65)");
+  grad.addColorStop(0.5, "rgba(255,255,255,0.12)");
+  grad.addColorStop(1, "rgba(255,255,255,0.00)");
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, size, size);
+
+  // Outline for definition
+  ctx.strokeStyle = "rgba(255,255,255,0.6)";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(0, 0, size, size);
+  ctx.strokeStyle = "rgba(0,0,0,0.35)";
+  ctx.lineWidth = 1;
+  ctx.strokeRect(1, 1, size-2, size-2);
+
+  // Equation text
+  if (text) {
+    ctx.fillStyle = "#ffffff";
+    ctx.font = Math.floor(size*0.38) + "px Arial";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(text + (isKey ? "🔒" : ""), size/2, size/2);
+  } else if (isKey) {
+    ctx.fillStyle = "#ffffff";
+    ctx.font = Math.floor(size*0.6) + "px Arial";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("🔒", size/2, size/2);
+  }
+
+  ctx.restore();
+}
+
+function drawBlock(x,y,cell){
+  const px = x*BLOCK_SIZE, py = y*BLOCK_SIZE;
+  const label = cell.equation ? getLabel(cell.equation) : null;
+  drawCrystalBlock(ctx, px, py, BLOCK_SIZE, cell.color, label, !!cell.isKeyBlock, 0.45);
+}
+
+function renderNext() {
+  nextCtx.clearRect(0, 0, nextCanvas.width, nextCanvas.height);
+  if (!nextPiece) return;
+  for (let r = 0; r < nextPiece.matrix.length; r++) {
+    for (let c = 0; c < nextPiece.matrix[r].length; c++) {
+      if (nextPiece.matrix[r][c]) {
+        drawCrystalBlock(nextCtx, c * 20, r * 20, 20, nextPiece.color, "", false, 0.45);
+      }
+    }
+  }
+}
+
+// --- TAP TO SOLVE ---
+gameCanvas.addEventListener("click", e => {
+  if (paused || !running) return;
+  const rect = gameCanvas.getBoundingClientRect();
+  const x = Math.floor((e.clientX - rect.left) / BLOCK_SIZE);
+  const y = Math.floor((e.clientY - rect.top) / BLOCK_SIZE);
+
+  // Landed cell?
+  if (field[y]?.[x]) {
+    const cell = field[y][x];
+    if (!cell.equation) return;             // ignore empty/normal blocks
+    selectedCell = { mode:'field', x, y, isKey: !!cell.isKeyBlock, equation: cell.equation };
+  }
+  // Active piece cell?
+  else if (active &&
+           y >= active.row && y < active.row + active.matrix.length &&
+           x >= active.col  && x < active.col  + active.matrix[0].length) {
+    const dy = y - active.row, dx = x - active.col;
+    if (!active.matrix[dy]?.[dx]) return;   // empty cell in piece
+    const eq = active.equations[dy][dx];
+    if (!eq) return;
+    selectedCell = { mode:'active', dy, dx, isKey: active.keyMask?.[dy]?.[dx] === 1, equation: eq };
+  } else {
+    return; // tapped empty space
+  }
+
+  // Open toast with full equation
+  equationText.textContent = `${selectedCell.equation.a} ${selectedCell.equation.op} ${selectedCell.equation.b} = ?`;
+  equationInput.value = "";
+  solverToast.classList.remove("hidden");
+});
+
+
+// --- NUMPAD ---
+numpadBtns.forEach(btn => btn.addEventListener("click", () => {
+  equationInput.value += btn.textContent;
+}));
+clearBtn.addEventListener("click", () => {
+  equationInput.value = equationInput.value.slice(0, -1);
+});
+submitBtn.addEventListener("click", () => {
+  if (!selectedCell) return;
+  const ok = checkAnswerWrapper(selectedCell.equation, parseInt(equationInput.value, 10));
+  if (ok){
+    if (selectedCell.mode === 'field'){
+      const {x,y} = selectedCell;
+      if (field[y]?.[x]) {
+        field[y][x] = null;
+        collapseColumns();     // only for solved landed cells
+        clearLines();
+      }
+    } else if (selectedCell.mode === 'active' && active){
+      const {dy, dx} = selectedCell;
+      // if the piece rotated, this specific cell might be gone — bail silently
+      if (active.matrix[dy]?.[dx]) {
+        active.matrix[dy][dx] = 0;
+        active.equations[dy][dx] = null;
+        if (selectedCell.isKey) active.keyMask[dy][dx] = 0; // remove lock flag
+      }
+    }
+  }
+  solverToast.classList.add("hidden");
+  selectedCell = null;
+  render();
+});
+
+// --- PAUSE/EXIT ---
+pauseBtn.addEventListener("click", () => {
+  paused = !paused;
+  pauseBtn.textContent = paused ? "▶" : "⏸";
+});
+exitBtn.addEventListener("click", () => {
+  paused = true;
+  exitToast.classList.remove("hidden");
+});
+resumeBtn.addEventListener("click", () => {
+  paused = false;
+  exitToast.classList.add("hidden");
+});
+leaveBtn.addEventListener("click", () => {
+  try {
+    window.close();
+  } catch {
+    window.location.href = "about:blank";
+  }
+});
+document.getElementById('lb-save').addEventListener('click', ()=>{
+  const name = document.getElementById('lb-name').value;
+  lbAdd(name, score);
+  lbRender();
+  // after saving, hide entry row to prevent double-save
+  document.getElementById('lb-entry').style.display = 'none';
+});
+
+document.getElementById('lb-restart').addEventListener('click', ()=>{
+resetSolverUI(); 
+ 
+  field = []; active = null; nextPiece = null;
+  score = 0; totalLines = 0; level = 1; running = true; paused = false;
+  document.getElementById('score').textContent = 'Score: 0';
+  applyLevel(); // resets level/speed labels
+  initField(); spawnPiece(); render();
+  lbHide();
+});
+document.getElementById('lb-clear').addEventListener('click', ()=>{
+  lbSave([]); lbRender();
+});
+document.getElementById('lb-close').addEventListener('click', lbHide);
+
+// --- CONTROLS ---
+document.getElementById("left-btn").addEventListener("click", () => move(-1));
+document.getElementById("right-btn").addEventListener("click", () => move(1));
+document.getElementById("rotate-btn").addEventListener("click", rotate);
+document.getElementById("drop-btn").addEventListener("click", hardDrop);
+
+// --- GAME LOOP ---
+let lastTime = 0;
+function update(time = 0) {
+  const delta = time - lastTime;
+  lastTime = time;
+  dropTimer += delta;
+  if (dropTimer > dropInterval && !paused && running) {
+    drop();
+    dropTimer = 0;
+  }
+  requestAnimationFrame(update);
+}
+
+initField();
+spawnPiece();
+applyLevel();  
+render();
+update();
+function debugPrintField(){
+  let out='';
+  for(let r=0;r<ROWS;r++){
+    for(let c=0;c<COLS;c++){
+      const cell = field[r][c];
+      out += !cell ? '.' : (cell.isKeyBlock ? (cell.solved?'k':'K') : '#');
+    }
+    out+='\n';
+  }
+  console.log(out);
+}
+
+</script>
+
+
+</body>
+</html>
