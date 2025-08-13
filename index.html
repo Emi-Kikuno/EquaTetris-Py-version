@@ -795,7 +795,10 @@ function drawCrystalBlock(ctx, px, py, size, color, text, isKey=false, alpha=0.4
 
   // Apply alpha to the entire crystal draw
   ctx.globalAlpha = alpha;
-
+// Add glow for keyblocks
+if (isKey) {
+  ctx.shadowColor = "rgba(255, 255, 0, 0.9)"; // bright gold
+  ctx.shadowBlur = 12;
   // Base translucent fill
   ctx.fillStyle = color;
   ctx.fillRect(0, 0, size, size);
