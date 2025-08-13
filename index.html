@@ -795,10 +795,13 @@ function drawCrystalBlock(ctx, px, py, size, color, text, isKey=false, alpha=0.4
 
   // Apply alpha to the entire crystal draw
   ctx.globalAlpha = alpha;
-// Add glow for keyblocks
-if (isKey) {
-  ctx.shadowColor = "rgba(255, 255, 0, 0.9)"; // bright gold
-  ctx.shadowBlur = 12;
+
+  // Key block: subtle glow (contained by save/restore)
+  if (isKey){
+    ctx.shadowColor = "rgba(255, 215, 0, 0.95)"; // gold glow
+    ctx.shadowBlur = 14;
+  }
+
   // Base translucent fill
   ctx.fillStyle = color;
   ctx.fillRect(0, 0, size, size);
@@ -819,13 +822,21 @@ if (isKey) {
   ctx.lineWidth = 1;
   ctx.strokeRect(1, 1, size-2, size-2);
 
-  // Equation text
+  // Extra gold ring for key blocks (on top of the crystal)
+  if (isKey){
+    ctx.strokeStyle = "rgba(255, 215, 0, 0.95)";
+    ctx.lineWidth = 3;
+    ctx.strokeRect(1.5, 1.5, size-3, size-3);
+  }
+
+  // Equation text (with optional lock glyph appended)
   if (text) {
     ctx.fillStyle = "#ffffff";
     ctx.font = Math.floor(size*0.38) + "px Arial";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText(text + (isKey ? "🔒" : ""), size/2, size/2);
+    const label = text + (isKey ? "🔒" : "");
+    ctx.fillText(label, size/2, size/2);
   } else if (isKey) {
     ctx.fillStyle = "#ffffff";
     ctx.font = Math.floor(size*0.6) + "px Arial";
