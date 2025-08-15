@@ -931,11 +931,8 @@ resumeBtn.addEventListener("click", () => {
   exitToast.classList.add("hidden");
 });
 leaveBtn.addEventListener("click", () => {
-  try {
-    window.close();
-  } catch {
-    window.location.href = "about:blank";
-  }
+  exitToast.classList.add("hidden");
+  window.location.href = "index.html";
 });
 document.getElementById('lb-save').addEventListener('click', ()=>{
   const name = document.getElementById('lb-name').value;
